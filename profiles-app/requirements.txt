@@ -30,3 +30,4 @@ uvicorn==0.23.2
 
 python-dotenv
 psycopg2-binary
+gunicorn

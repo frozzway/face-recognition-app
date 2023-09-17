@@ -1,0 +1,114 @@
+version: "3.7"
+services:
+  profiles-app:
+    image: service44_profiles-app
+    ports:
+      - 56667:8080
+    restart: unless-stopped
+    command: >
+      bash -c "cd /app/src &&
+      gunicorn profiles_app.app:app
+      --bind 0.0.0.0:8080
+      --worker-class=uvicorn.workers.UvicornWorker
+      --access-logfile='-'
+      --capture-output"
+    environment:
+      redis_address: redis
+      redis_port: 6379
+      redis_db: 3
+
+      db_host: postgres
+      db_username: admin
+      db_password: 123
+      db_port: 5432
+      db_database: profiles_app
+
+      minio_address: "minio:9000"
+      minio_secret_key: minio-secret-key-change-me
+      minio_access_key: minioadmin
+
+    depends_on:
+      - postgres
+      - redis
+
+
+  worker:
+    image: service44_video-processing
+    restart: unless-stopped
+    command: >
+      bash -c "cd /app/src &&
+      celery -A video_processing.settings
+      worker -l info
+      -n worker1@%h"
+    environment:
+      redis_address: redis
+      redis_port: 6379
+      redis_db: 3
+
+      minio_address: "minio:9000"
+      minio_secret_key: minio-secret-key-change-me
+      minio_access_key: minioadmin
+
+      profile_service_address: "profiles-app:8080"
+
+
+  video-processing-app:
+    image: service44_video-processing
+    ports:
+      - 50001:8000
+    restart: unless-stopped
+    command: >
+      bash -c "cd /app/src &&
+      gunicorn video_processing.app:app
+      --bind 0.0.0.0:8000
+      --worker-class=uvicorn.workers.UvicornWorker
+      --access-logfile='-'
+      --capture-output"
+    environment:
+      redis_address: redis
+      redis_port: 6379
+      redis_db: 3
+
+      minio_address: "minio:9000"
+      minio_secret_key: minio-secret-key-change-me
+      minio_access_key: minioadmin
+
+      profile_service_address: "profiles-app:8080"
+
+
+  redis:
+    image: redis:7.2.1-alpine
+    restart: always
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: minio/minio
+    command: server --console-address ":9090"
+    ports:
+      - 50002:9090
+    restart: always
+    volumes:
+      - minio-data:/mnt/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minio-secret-key-change-me
+      MINIO_VOLUMES: "/mnt/data"
+
+  postgres:
+    image: postgres:14-alpine
+    restart: always
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: 123
+      POSTGRES_USER: admin
+      POSTGRES_DB: profiles_app
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "{{ db_username }}", '-d', '{{ db_database }}']
+      interval: 3s
+
+volumes:
+  redis-data:
+  postgres-data:
+  minio-data:

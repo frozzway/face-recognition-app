@@ -7,7 +7,6 @@ from minio import Minio
 class Settings(BaseSettings):
     server_host: str = '0.0.0.0'
     server_port: int = '8000'
-    angular_port: int = '4200'
     redis_address: str = '192.168.0.139'
     redis_port: str = '6380'
     redis_db: str = '3'
